@@ -10,7 +10,7 @@ Adafruit_7segment scoreseg = Adafruit_7segment();
 Adafruit_7segment timeseg = Adafruit_7segment();
 
 int resistances[] = {
-  680, 680, 680, 680, 680, 680, 680, 680, 680
+  500, 500, 500, 500, 500, 500, 500, 500, 500
 };
 int stepResistance[] = {
   80, 80, 80, 80, 80, 80, 80, 80, 80
@@ -71,6 +71,12 @@ void readStep(int index) {
   stepState[index] = newState;
 }
 
+void readSteps() {
+  for (int i = 0; i < NUM_STEPS; ++i) {
+    readStep(i);
+  }
+}
+
 void initSteps() {
   for (int i = 0; i < NUM_STEPS; ++i) {
     stepState[i] = false;
@@ -104,13 +110,13 @@ void start() {
     writeTime(time);
     // randomly pick a tile to light up
     tile = random(0,9);
-    digitalWrite(ledPins[tile], LOW);
+    digitalWrite(ledPins[tile], HIGH);
     // read steps for variable amount of time, depending on round. Get the score.
     timer = millis();
     score = score + getscore(time, roundnum, tile);
     time = time - (millis() - timer);
     // deactivate tile
-    digitalWrite(ledPins[tile], HIGH);
+    digitalWrite(ledPins[tile], LOW);
     // write score to 7-seg
     scoreseg.print(score, DEC);
     scoreseg.writeDisplay();
@@ -137,19 +143,16 @@ int getscore(long time, int roundnum, int tile) {
   // every 4 rounds, the time interval goes down by .1 sec
   long timeleft = (long) max((1000 - (roundnum / 4)*100), 350);
   // poll the step
-  while (!negEdge[tile]) {
-    readStep(tile);
+  readSteps();
+  while (!posEdge[tile]) {
+    readSteps();
     if ((millis() - time) > timeleft) {
       break;
     }
+    // We might want to add this if the clock updates are too uneven
+    // writeTime(time);
   }
-  if (negEdge[tile]) {
-    // reset the negEdge value before returning
-    readStep(tile);
-    return 1;
-  }
-  readStep(tile);
-  return 0;
+  return posEdge[tile];
 }
 
 void setup() {
@@ -159,8 +162,8 @@ void setup() {
   for (int i = 0; i < NUM_STEPS; ++i) {
     pinMode(stepPins[i], INPUT);
     pinMode(ledPins[i], OUTPUT);
-    // set to ground to turn on strip
-    digitalWrite(ledPins[i], HIGH);
+    // set to HIGH to turn on strip
+    digitalWrite(ledPins[i], LOW);
   }
   pinMode(indicatorLED, OUTPUT);
   initSteps();
