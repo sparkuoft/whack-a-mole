@@ -1,6 +1,13 @@
+#include <Wire.h>
+#include <EEPROM.h>
+#include "Adafruit_LEDBackpack.h"
+#include "Adafruit_GFX.h"
 
-const int NUM_STEPS = 1;//9;
+const int NUM_STEPS = 9;
 const int indicatorLED = 13;
+Adafruit_7segment highscoreseg = Adafruit_7segment();
+Adafruit_7segment scoreseg = Adafruit_7segment();
+Adafruit_7segment timeseg = Adafruit_7segment();
 
 int resistances[] = {
   680, 680, 680, 680, 680, 680, 680, 680, 680
@@ -17,6 +24,10 @@ bool posEdge[NUM_STEPS];
 bool negEdge[NUM_STEPS];
 int stepPins[] = {
   A1, A2, A3, A4, A5, A6, A7, A8, A9
+};
+
+int ledPins[] = {
+  31, 32, 33, 34, 35, 36, 37, 38, 39
 };
 
 // R1 is fixed, R2 is the step
@@ -68,31 +79,107 @@ void initSteps() {
   }
 }
 
-void readSteps() {
-  for (int i = 0; i < NUM_STEPS; ++i) {
-    readStep(i);
+void writeTime(long longtime){
+  // convert time from ms to s as an integer
+  // don't bother rounding, too much effort
+  int time = (int)(longtime/1000);
+  // write the time to 7-seg display as an int
+  timeseg.print(time);
+  timeseg.writeDisplay();  
+}
+
+// this is the main function for gameplay
+void start() {
+  // total time allotted for play = 1 min
+  long time = 60000;
+  // start with round 1
+  int roundnum = 1;
+  int score = 0;
+  int tile;
+  long timer;
+  
+  // start gameplay
+  while (time > 0) {
+    // write the time
+    writeTime(time);
+    // randomly pick a tile to light up
+    tile = random(0,9);
+    digitalWrite(ledPins[tile], LOW);
+    // read steps for variable amount of time, depending on round. Get the score.
+    timer = millis();
+    score = score + getscore(time, roundnum, tile);
+    time = time - (millis() - timer);
+    // deactivate tile
+    digitalWrite(ledPins[tile], HIGH);
+    // write score to 7-seg
+    scoreseg.print(score, DEC);
+    scoreseg.writeDisplay();
+    // increment round
+    roundnum++;
   }
+  writeTime(0.0);
+  // flash score
+  scoreseg.blinkRate(1);
+  // write and flash high score if applicable
+  if (score > EEPROM.read(0)) {
+    EEPROM.write(0, score);
+    highscoreseg.print(score, DEC);
+    highscoreseg.blinkRate(1);
+  }
+  // flash score for 5 seconds before exiting
+  delay(5000);
+  scoreseg.blinkRate(0);
+  highscoreseg.blinkRate(0);
+}
+
+// this function waits for a step on the correct tile
+int getscore(long time, int roundnum, int tile) {
+  // every 4 rounds, the time interval goes down by .1 sec
+  long timeleft = (long) max((1000 - (roundnum / 4)*100), 350);
+  // poll the step
+  while (!negEdge[tile]) {
+    readStep(tile);
+    if ((millis() - time) > timeleft) {
+      break;
+    }
+  }
+  if (negEdge[tile]) {
+    // reset the negEdge value before returning
+    readStep(tile);
+    return 1;
+  }
+  readStep(tile);
+  return 0;
 }
 
 void setup() {
+  // setup serial port
   Serial.begin(115200);
+  // setup analog pins for pads, and led strips
   for (int i = 0; i < NUM_STEPS; ++i) {
     pinMode(stepPins[i], INPUT);
+    pinMode(ledPins[i], OUTPUT);
+    // set to ground to turn on strip
+    digitalWrite(ledPins[i], HIGH);
   }
   pinMode(indicatorLED, OUTPUT);
+  initSteps();
+  // setup 7-seg controllers:
+  // high score 7-seg
+  highscoreseg.begin(0x70);
+  // score 7-seg
+  scoreseg.begin(0x71);
+  // time remaining 7-seg
+  timeseg.begin(0x72);
+  // initialize high score
+  int highscore = 0;
+  // setup start button
+  // unconnected pin used for random seed
+  randomSeed(analogRead(0));
 }
 
 void loop() {
-  while (true) {
-    readSteps();
-    digitalWrite(indicatorLED, stepState[0] ? HIGH : LOW);
-    if (posEdge[0]) {
-      Serial.print("Positive edge: ");
-      Serial.println(millis());
-    }
-    if (negEdge[0]) {
-      Serial.print("Negative edge: ");
-      Serial.println(millis());
-    }
-  }
+  // wait for start button to be pressed
+  // poll button
+  start();
 }
