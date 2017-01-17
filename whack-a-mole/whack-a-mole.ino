@@ -22,6 +22,7 @@ int noStepResistance[] = {
 bool stepState[NUM_STEPS];
 bool posEdge[NUM_STEPS];
 bool negEdge[NUM_STEPS];
+
 int stepPins[] = {
   A1, A2, A3, A4, A5, A6, A7, A8, A9
 };
@@ -29,6 +30,47 @@ int stepPins[] = {
 int ledPins[] = {
   31, 32, 33, 34, 35, 36, 37, 38, 39
 };
+
+unsigned long startResetButton[3];
+int startButton = 2;
+bool reset = false;
+bool startgame = false;
+
+/*
+ * This function checks if a mechanical switch has been activated. The time
+ * constant, 'DEBOUNCE_DELAY' avoids activated a false signal due to bouncing in
+ * the switch
+ */
+bool switchToggled(unsigned long switchPin, unsigned long* lastValue, unsigned long* lastActivated){
+  unsigned long now = millis();
+  int currentValue = digitalRead(switchPin) == HIGH ? 0 : 1;
+
+  if( (now - *lastActivated) < 200){
+    return false;
+  }
+
+  if(*lastValue != currentValue){
+    // inverted because it's pulled HIGH by default
+    *lastValue = currentValue;
+    *lastActivated = now;
+    return currentValue;
+  }
+
+  return false;
+}
+
+/*
+ * Instantiates the initial state of the switch (think of an RC capacitor)
+ */
+void initializeButton(unsigned long *buttonObject, unsigned long pinID){
+  buttonObject[0] = pinID;
+  buttonObject[1] = HIGH;
+  buttonObject[2] = millis();
+
+  //note: default value is HIGH because of the INPUT_PULLUP state
+  Serial.print(pinID);
+  pinMode(pinID, INPUT_PULLUP);
+}
 
 // R1 is fixed, R2 is the step
 // Assuming: Vcc--R2--Vo--R1--GND
@@ -47,13 +89,6 @@ void readStep(int index) {
   long reading = analogRead(pin);
   if (reading == 0) reading = 1;
   long resistance = (R1*1024L)/reading - R1;
-  //Serial.print(reading);
-  //Serial.print(" ");
-  //Serial.print(R1*1024);
-  //Serial.print(" ");
-  //Serial.print((R1*1024)/reading);
-  //Serial.print(" ");
-  //Serial.println(resistance);
 
   // Compute the new state
   bool newState = stepState[index];
@@ -96,6 +131,9 @@ void writeTime(long longtime){
 
 // this is the main function for gameplay
 void start() {
+  // reset the start button state
+  startgame = false;
+  reset = false;
   // total time allotted for play = 1 min
   long time = 60000;
   // start with round 1
@@ -103,6 +141,9 @@ void start() {
   int score = 0;
   int tile;
   long timer;
+  
+  // intro flash the time 7-seg
+  flash_intro();
   
   // start gameplay
   while (time > 0) {
@@ -114,6 +155,9 @@ void start() {
     // read steps for variable amount of time, depending on round. Get the score.
     timer = millis();
     score = score + getscore(time, roundnum, tile);
+    if (reset) {
+      return;
+    }
     time = time - (millis() - timer);
     // deactivate tile
     digitalWrite(ledPins[tile], LOW);
@@ -132,8 +176,8 @@ void start() {
     highscoreseg.print(score, DEC);
     highscoreseg.blinkRate(1);
   }
-  // flash score for 5 seconds before exiting
-  delay(5000);
+  // flash score for 3 seconds before exiting
+  delay(3000);
   scoreseg.blinkRate(0);
   highscoreseg.blinkRate(0);
 }
@@ -145,6 +189,10 @@ int getscore(long time, int roundnum, int tile) {
   // poll the step
   readSteps();
   while (!posEdge[tile]) {
+    if (switchToggled(startResetButton[0], &startResetButton[1], &startResetButton[2])) {
+      reset = true;
+      break;
+    }
     readSteps();
     if ((millis() - time) > timeleft) {
       break;
@@ -153,6 +201,16 @@ int getscore(long time, int roundnum, int tile) {
     // writeTime(time);
   }
   return posEdge[tile];
+}
+
+void flash_intro() {
+  // literally the worst function I have ever written
+  long j;
+  for (int i=0; i < 6; i++) {
+    j = (long)i*1000;
+    writeTime(j);
+    delay(500);
+  }
 }
 
 void setup() {
@@ -166,6 +224,10 @@ void setup() {
     digitalWrite(ledPins[i], LOW);
   }
   pinMode(indicatorLED, OUTPUT);
+  
+  // setup start button
+  initializeButton(startResetButton, startButton);
+  
   initSteps();
   // setup 7-seg controllers:
   // high score 7-seg
@@ -176,13 +238,15 @@ void setup() {
   timeseg.begin(0x72);
   // initialize high score
   int highscore = 0;
-  // setup start button
   // unconnected pin used for random seed
   randomSeed(analogRead(0));
 }
 
 void loop() {
   // wait for start button to be pressed
-  // poll button
+  while !(startgame) {
+    startgame = switchToggled(startResetButton[0], &startResetButton[1], &startResetButton[2])
+  }
   start();
+  startgame = reset;
 }
