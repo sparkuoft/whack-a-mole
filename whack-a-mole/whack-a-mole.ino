@@ -64,7 +64,7 @@ bool switchToggled(unsigned long switchPin, unsigned long* lastValue, unsigned l
  */
 void initializeButton(unsigned long *buttonObject, unsigned long pinID){
   buttonObject[0] = pinID;
-  buttonObject[1] = HIGH;
+  buttonObject[1] = 0;
   buttonObject[2] = millis();
 
   //note: default value is HIGH because of the INPUT_PULLUP state
@@ -242,10 +242,30 @@ void setup() {
   randomSeed(analogRead(0));
 }
 
+// TODO: can the score ever go over 255?
 void loop() {
+  // Per-game reset
+
+  // reset all the LEDs in case the start button was pressed at an inopportune time and
+  // one of the LEDs is still on.
+  for (int i = 0; i < NUM_STEPS; ++i) {
+    digitalWrite(ledPins[i], LOW);
+  }
+
+  // clear the timer
+  writeTime(0); // or whatever
+
+  // clear the score
+  scoreseg.print(0, DEC); // or whatever
+  scoreseg.writeDisplay();
+
+  // read the high score and show that
+  int high_score = EEPROM.read(0);
+  highscoreseg.print(high_score, DEC);
+
   // wait for start button to be pressed
-  while !(startgame) {
-    startgame = switchToggled(startResetButton[0], &startResetButton[1], &startResetButton[2])
+  while (!startgame) {
+    startgame = switchToggled(startResetButton[0], &startResetButton[1], &startResetButton[2]);
   }
   start();
   startgame = reset;
