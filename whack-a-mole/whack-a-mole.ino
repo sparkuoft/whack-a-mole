@@ -24,11 +24,11 @@ bool posEdge[NUM_STEPS];
 bool negEdge[NUM_STEPS];
 
 int stepPins[] = {
-  A1, A2, A3, A4, A5, A6, A7, A8, A9
+  A7, A3, A5, A6, A2, A4, A8, A0, A1,
 };
 
 int ledPins[] = {
-  31, 32, 33, 34, 35, 36, 37, 38, 39
+  39, 41, 33, 47, 35, 31, 37, 43, 45,
 };
 
 unsigned long startResetButton[3];
