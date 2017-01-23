@@ -135,7 +135,7 @@ void start() {
   startgame = false;
   reset = false;
   // total time allotted for play = 1 min
-  long time = 1000;//60000; // TODO: FIXME
+  long time = 5000;//60000; // TODO: FIXME
   // start with round 1
   int roundnum = 1;
   unsigned long score = 0;
