@@ -5,6 +5,12 @@
 
 const int NUM_STEPS = 9;
 const int indicatorLED = 13;
+const int HIGH_SCORE_ADDR = 0x0;
+const int TIME_ADDR = 0x10;
+const int COUNTER_ADDR = 0x20;
+const unsigned long ONE_HOUR_MS = 1000L * 60L * 60L;
+const unsigned long TEN_MINUTES_MS = 1000L * 60L * 10L;
+unsigned long previous_time = 0;
 Adafruit_7segment highscoreseg = Adafruit_7segment();
 Adafruit_7segment scoreseg = Adafruit_7segment();
 Adafruit_7segment timeseg = Adafruit_7segment();
@@ -124,6 +130,7 @@ void writeTime(long longtime){
 
 // this is the main function for gameplay
 void start() {
+  Serial.println("Start game!");
   // reset the start button state
   startgame = false;
   reset = false;
@@ -170,9 +177,9 @@ void start() {
   scoreseg.blinkRate(1);
   // write and flash high score if applicable
   unsigned long high_score;
-  EEPROM.get(0, high_score);
+  EEPROM.get(HIGH_SCORE_ADDR, high_score);
   if (score > high_score) {
-    EEPROM.put(0, score);
+    EEPROM.put(HIGH_SCORE_ADDR, score);
     highscoreseg.print(score, DEC);
     highscoreseg.writeDisplay();
     highscoreseg.blinkRate(1);
@@ -217,6 +224,31 @@ void flash_intro() {
   }
 }
 
+void updateEEPROMTime() {
+  // Check if our clock has ticked forward ten minutes compared to the stored EEPROM value
+  unsigned long eeprom_time;
+  EEPROM.get(TIME_ADDR, eeprom_time);
+  unsigned long current_time = previous_time + millis();
+  if (current_time > eeprom_time + TEN_MINUTES_MS) {
+    // If so, update the EEPROM time
+    EEPROM.put(TIME_ADDR, current_time);
+    Serial.print("Updated EEPROM time to: ");
+    Serial.println(current_time);
+  }
+}
+
+// Get the number of plays stored in EEPROM for this hour
+unsigned int getEEPROMCount(unsigned int hour) {
+  unsigned int count; // 2 bytes
+  EEPROM.get(COUNTER_ADDR + 2*hour, count);
+  return count;
+}
+
+// Store count into the EEPROM at the given hour
+void putEEPROMCount(unsigned int hour, unsigned int count) {
+  EEPROM.put(COUNTER_ADDR + 2*hour, count);
+}
+
 void setup() {
   // setup serial port
   Serial.begin(115200);
@@ -242,9 +274,27 @@ void setup() {
   timeseg.begin(0x71);
   // unconnected pin used for random seed
   randomSeed(analogRead(0));
+
+  // Initialize the stats stuff
+  EEPROM.get(TIME_ADDR, previous_time);
+  Serial.print("Previous time: ");
+  Serial.println(previous_time);
+
+  // Spit out stats to the serial port!
+  unsigned long total = 0;
+  unsigned long current_hour = (previous_time + millis()) / ONE_HOUR_MS;
+  for (int i = 0; i <= current_hour; i++) {
+    Serial.print("Hour ");
+    Serial.print(i);
+    Serial.print(": ");
+    unsigned int count = getEEPROMCount(i);
+    Serial.println(count);
+    total += count;
+  }
+  Serial.print("Total: ");
+  Serial.println(total);
 }
 
-// TODO: can the score ever go over 255?
 void loop() {
   // Per-game reset
 
@@ -263,14 +313,33 @@ void loop() {
 
   // read the high score and show that
   unsigned long high_score;
-  EEPROM.get(0, high_score);
+  EEPROM.get(HIGH_SCORE_ADDR, high_score);
   highscoreseg.print(high_score, DEC);
   highscoreseg.writeDisplay();
 
   // wait for start button to be pressed
   while (!startgame) {
     startgame = switchToggled(startResetButton[0], &startResetButton[1], &startResetButton[2]);
+
+    // We need to periodically update the time stored in the EEPROM.
+    // Since this loop is where we spend most of our idle time, let's do it here.
+    updateEEPROMTime();
   }
   start();
   startgame = reset;
+
+  // Check if we actually finished this game without reset
+  if (!reset) {
+    // Great! Count it
+    unsigned long current_time = previous_time + millis();
+    unsigned int hours_since_start = current_time / ONE_HOUR_MS;
+    unsigned int old_count = getEEPROMCount(hours_since_start);
+    putEEPROMCount(hours_since_start, old_count + 1);
+    // Also update the EEPROM time
+    updateEEPROMTime();
+    Serial.println("Game finished and recorded!");
+  } else {
+    Serial.println("Game reset before completion :(");
+  }
 }
+
