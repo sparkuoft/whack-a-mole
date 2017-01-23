@@ -8,8 +8,8 @@ const int indicatorLED = 13;
 const int HIGH_SCORE_ADDR = 0x0;
 const int TIME_ADDR = 0x10;
 const int COUNTER_ADDR = 0x20;
-const unsigned long ONE_HOUR_MS = 1000L * 60L * 60L;
-const unsigned long TEN_MINUTES_MS = 1000L * 60L * 10L;
+const unsigned long ONE_HOUR_MS = 1000L * 30L; // 1000L * 60L * 60L; // TODO: FIXME
+const unsigned long TEN_MINUTES_MS = 1000L * 10L; // 1000L * 60L * 10L; // TODO: FIXME
 unsigned long previous_time = 0;
 unsigned long last_serial_update = 0;
 Adafruit_7segment highscoreseg = Adafruit_7segment();
@@ -135,7 +135,7 @@ void start() {
   startgame = false;
   reset = false;
   // total time allotted for play = 1 min
-  long time = 60000;
+  long time = 1000;//60000; // TODO: FIXME
   // start with round 1
   int roundnum = 1;
   unsigned long score = 0;
