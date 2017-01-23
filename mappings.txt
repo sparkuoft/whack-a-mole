@@ -1,0 +1,35 @@
+LEDs
+----
+Indy - 5 (39)
+Chem - 6 (41)
+Min - 2 (33)
+EngSci - 9 (47)
+T1 - 3 (35)
+Material - 1 (31)
+ECE - 4 (37)
+Mech - 7 (43)
+Civ - 8 (45)
+
+Steps
+-----
+Indy - 8 (A7)
+Chem - 4 (A3)
+Min - 6 (A5)
+EngSci - 7 (A6)
+T1 - 3 (A2)
+Material - 5 (A4)
+ECE - 9 (A8)
+Mech - 1 (A0)
+Civ - 2 (A1)
+
+Resistances (high, low)
+-----------------------
+Indy - (400, 100)
+Chem - (300, 200)
+Min - (400, 150)
+EngSci - (400, 150)
+T1 - (200, 100)
+Material - (300, 150)
+ECE - (400, 150)
+Mech - (300, 200)
+Civ - (300, 200)

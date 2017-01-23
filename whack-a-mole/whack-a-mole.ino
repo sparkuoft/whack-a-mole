@@ -17,25 +17,26 @@ Adafruit_7segment scoreseg = Adafruit_7segment();
 Adafruit_7segment timeseg = Adafruit_7segment();
 
 int resistances[] = {
-  500, 500, 500, 500, 500, 500, 500, 500, 500
+  500, 500, 500, 500, 500, 500, 500, 500, 500,
 };
-int stepResistance[] = {
-  80, 80, 80, 80, 80, 80, 80, 80, 80
+int stepValues[] = {
+  100, 200, 150, 150, 100, 150, 150, 200, 200,
 };
-int noStepResistance[] = {
-  100, 100, 100, 100, 100, 100, 100, 100, 100
+int noStepValues[] = {
+  400, 300, 400, 400, 200, 300, 400, 300, 300,
 };
 
 bool stepState[NUM_STEPS];
 bool posEdge[NUM_STEPS];
 bool negEdge[NUM_STEPS];
+long measurements[NUM_STEPS];
 
 int stepPins[] = {
-  A1, A2, A3, A4, A5, A6, A7, A8, A9
+  A7, A3, A5, A6, A2, A4, A8, A0, A1,
 };
 
 int ledPins[] = {
-  31, 32, 33, 34, 35, 36, 37, 38, 39
+  39, 41, 33, 47, 35, 31, 37, 43, 45,
 };
 
 unsigned long startResetButton[3];
@@ -86,22 +87,14 @@ void initializeButton(unsigned long *buttonObject, unsigned long pinID){
 // And Vo = analogRead / 1024 * Vcc
 // So, R2 = R1*(1024/analogRead) - R1
 void readStep(int index) {
-  int Vcc = 5;
-  int pin = stepPins[index];
-  long R1 = resistances[index];
-  int stepRes = stepResistance[index];
-  int noStepRes = noStepResistance[index];
-
-  // Trying to keep all of the arithmetic integer
-  long reading = analogRead(pin);
-  if (reading == 0) reading = 1;
-  long resistance = (R1*1024L)/reading - R1;
+  long reading = analogRead(stepPins[index]);
+  measurements[index] = reading;
 
   // Compute the new state
   bool newState = stepState[index];
-  if (!stepState[index] && resistance <= stepRes) {
+  if (!stepState[index] && reading <= stepValues[index]) {
     newState = true;
-  } else if (stepState[index] && resistance >= noStepRes) {
+  } else if (stepState[index] && reading >= noStepValues[index]) {
     newState = false;
   }
 
@@ -145,19 +138,23 @@ void start() {
   long time = 60000;
   // start with round 1
   int roundnum = 1;
-  int score = 0;
-  int tile;
+  unsigned long score = 0;
   long timer;
   
   // intro flash the time 7-seg
-  flash_intro();
+  //flash_intro();
   
   // start gameplay
+  int last_tile = -1;
+  int tile = -1;
   while (time > 0) {
     // write the time
     writeTime(time);
     // randomly pick a tile to light up
-    tile = random(0,9);
+    last_tile = tile;
+    while (tile == last_tile) {
+      tile = random(0,9);
+    }
     digitalWrite(ledPins[tile], HIGH);
     // read steps for variable amount of time, depending on round. Get the score.
     timer = millis();
@@ -165,6 +162,7 @@ void start() {
     if (reset) {
       return;
     }
+    //delay(1000);
     time = time - (millis() - timer);
     // deactivate tile
     digitalWrite(ledPins[tile], LOW);
@@ -178,21 +176,28 @@ void start() {
   // flash score
   scoreseg.blinkRate(1);
   // write and flash high score if applicable
-  if (score > EEPROM.read(HIGH_SCORE_ADDR)) {
-    EEPROM.write(HIGH_SCORE_ADDR, score);
+  unsigned long high_score;
+  EEPROM.get(HIGH_SCORE_ADDR, high_score);
+  if (score > high_score) {
+    EEPROM.put(HIGH_SCORE_ADDR, score);
     highscoreseg.print(score, DEC);
+    highscoreseg.writeDisplay();
     highscoreseg.blinkRate(1);
   }
-  // flash score for 3 seconds before exiting
-  delay(3000);
+  // flash score for 6 seconds before exiting
+  delay(6000);
   scoreseg.blinkRate(0);
   highscoreseg.blinkRate(0);
 }
 
 // this function waits for a step on the correct tile
-int getscore(long time, int roundnum, int tile) {
+int getscore(unsigned long time, int roundnum, int tile) {
   // every 4 rounds, the time interval goes down by .1 sec
-  long timeleft = (long) max((1000 - (roundnum / 4)*100), 350);
+  unsigned long start = millis();
+  Serial.print("Start time: ");
+  Serial.println(start);
+  Serial.print("Time left: ");
+  Serial.println(time);
   // poll the step
   readSteps();
   while (!posEdge[tile]) {
@@ -201,22 +206,21 @@ int getscore(long time, int roundnum, int tile) {
       break;
     }
     readSteps();
-    if ((millis() - time) > timeleft) {
+    if ((millis() - start) > time) {
+      Serial.print("Stopped at: ");
+      Serial.println(millis());
       break;
     }
-    // We might want to add this if the clock updates are too uneven
-    // writeTime(time);
+    writeTime(time - (millis() - start));
   }
   return posEdge[tile];
 }
 
 void flash_intro() {
   // literally the worst function I have ever written
-  long j;
-  for (int i=0; i < 6; i++) {
-    j = (long)i*1000;
-    writeTime(j);
-    delay(500);
+  for (int i=5; i > 0; i--) {
+    writeTime(i*1111L*1000L);
+    delay(1000);
   }
 }
 
@@ -263,11 +267,9 @@ void setup() {
   // high score 7-seg
   highscoreseg.begin(0x70);
   // score 7-seg
-  scoreseg.begin(0x71);
+  scoreseg.begin(0x72);
   // time remaining 7-seg
-  timeseg.begin(0x72);
-  // initialize high score
-  int highscore = 0;
+  timeseg.begin(0x71);
   // unconnected pin used for random seed
   randomSeed(analogRead(0));
 
@@ -293,8 +295,10 @@ void loop() {
   scoreseg.writeDisplay();
 
   // read the high score and show that
-  int high_score = EEPROM.read(HIGH_SCORE_ADDR);
+  unsigned long high_score;
+  EEPROM.get(HIGH_SCORE_ADDR, high_score);
   highscoreseg.print(high_score, DEC);
+  highscoreseg.writeDisplay();
 
   // wait for start button to be pressed
   while (!startgame) {
