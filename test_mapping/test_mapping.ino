@@ -10,15 +10,15 @@ Adafruit_7segment scoreseg = Adafruit_7segment();
 Adafruit_7segment timeseg = Adafruit_7segment();
 
 // Order:
-// 0 - Indy
-// 1 - Chem
-// 2 - Min
-// 3 - EngSci
-// 4 - T1
-// 5 - Material
-// 6 - ECE
-// 7 - Mech
-// 8 - Civ
+// 1 - Indy
+// 2 - Chem
+// 3 - Min
+// 4 - EngSci
+// 5 - T1
+// 6 - Material
+// 7 - ECE
+// 8 - Mech
+// 9 - Civ
 
 int stepValues[] = {
   80, 80, 80, 80, 80, 80, 80, 80, 80
